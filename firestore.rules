@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserId() {
+      return request.auth.uid;
+    }
+
+    function isAdmin() {
+      let adminAppId = 'booking-app-1af02';
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/artifacts/$(adminAppId)/users/$(getUserId())/profiles/userProfile) &&
+        get(/databases/$(database)/documents/artifacts/$(adminAppId)/users/$(getUserId())/profiles/userProfile).data.role == 'admin';
+    }
+
+    match /artifacts/{appId}/users/{userId} {
+      allow read: if (isAuthenticated() && getUserId() == userId) || isAdmin();
+
+      match /profiles/userProfile {
+        allow read: if (isAuthenticated() && getUserId() == userId) || isAdmin();
+        allow write: if isAuthenticated() && getUserId() == userId;
+      }
+
+      match /bookings/{bookingId} {
+        allow create: if isAuthenticated() && getUserId() == userId;
+        allow read, update, delete: if (isAuthenticated() && getUserId() == userId) || isAdmin();
+      }
+    }
+
+    // This rule is necessary for the admin page to fetch all bookings.
+    match /{path=**}/bookings/{bookingId} {
+      allow read: if isAdmin();
+    }
+  }
+}
