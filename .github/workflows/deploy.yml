@@ -24,7 +24,14 @@ jobs:
         run: npm install
 
       - name: Build React App
-        run: npm run build
+        run: |
+          echo "VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}"
+          echo "VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}"
+          echo "VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}"
+          echo "VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}"
+          echo "VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}"
+          echo "VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}"
+          npm run build
         env:
           # These will now be correctly pulled from your 'github-pages' environment secrets
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
@@ -33,7 +40,6 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
-          # REACT_APP_FIREBASE_MEASUREMENT_ID: ${{ secrets.REACT_APP_FIREBASE_MEASUREMENT_ID }} # Only if you use it
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
