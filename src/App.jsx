@@ -69,6 +69,28 @@ const BACKEND_API_BASE_URL = import.meta.env.VITE_BACKEND_API_BASE_URL || 'https
 function BookingApp() {
     // UI state
     const [selectedDate, setSelectedDate] = useState('');
+    const [isBackendOnline, setIsBackendOnline] = useState(true); // New state for backend status
+
+    // Effect for backend health check
+    useEffect(() => {
+        const checkBackendStatus = async () => {
+            try {
+                const response = await fetch(`${BACKEND_API_BASE_URL}/`); // Ping the backend root
+                setIsBackendOnline(response.ok); // Set true if response is ok (200-299 status)
+            } catch (error) {
+                console.error("Backend health check failed:", error);
+                setIsBackendOnline(false);
+            }
+        };
+
+        // Initial check
+        checkBackendStatus();
+
+        // Set up interval for periodic checks (e.g., every 10 seconds)
+        const intervalId = setInterval(checkBackendStatus, 10000); 
+
+        return () => clearInterval(intervalId); // Clean up interval on unmount
+    }, []);
     const [selectedTime, setSelectedTime] = useState('');
     const [duration, setDuration] = useState(2);
     const [selectedEquipment, setSelectedEquipment] = useState([]);
@@ -556,6 +578,18 @@ function BookingApp() {
         return (
             <div className="bg-gray-900 min-h-screen flex items-center justify-center text-orange-200 text-2xl p-4 text-center">
                 {error ? `Initialization Error: ${error}` : "Authenticating Firebase..."}
+            </div>
+        );
+    }
+
+    // Display backend offline message if applicable
+    if (!isBackendOnline) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+                <div className="bg-red-800 p-8 rounded-lg shadow-xl w-full max-w-md border border-red-700 text-center">
+                    <h2 className="text-3xl font-bold text-white mb-4">Server Offline or Under Maintenance</h2>
+                    <p className="text-gray-200 mb-6">We are currently experiencing technical difficulties. Please try again later.</p>
+                </div>
             </div>
         );
     }
