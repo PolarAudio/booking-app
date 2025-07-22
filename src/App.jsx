@@ -79,13 +79,6 @@ function BookingApp() {
                 const response = await fetch(`${BACKEND_API_BASE_URL}/`); // Ping the backend root
                 const data = await response.json();
                 const isCurrentlyOnline = response.ok && data.status === 'online';
-
-                console.log("Backend Status Check:");
-                console.log("  response.ok:", response.ok);
-                console.log("  data.status:", data.status);
-                console.log("  isCurrentlyOnline:", isCurrentlyOnline);
-                console.log("  previousBackendStatus.current:", previousBackendStatus.current);
-
                 setIsBackendOnline(isCurrentlyOnline);
 
                 // If backend was offline and is now online, trigger a full page reload
@@ -105,7 +98,7 @@ function BookingApp() {
         checkBackendStatus();
 
         // Set up interval for periodic checks (e.g., every 10 seconds)
-        const intervalId = setInterval(checkBackendStatus, 10000); 
+        const intervalId = setInterval(checkBackendStatus, 60000); 
 
         return () => clearInterval(intervalId); // Clean up interval on unmount
     }, []);
