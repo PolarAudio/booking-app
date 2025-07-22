@@ -70,16 +70,27 @@ function BookingApp() {
     // UI state
     const [selectedDate, setSelectedDate] = useState('');
     const [isBackendOnline, setIsBackendOnline] = useState(true); // New state for backend status
+    const previousBackendStatus = useRef(true); // Ref to store previous backend status
 
     // Effect for backend health check
     useEffect(() => {
         const checkBackendStatus = async () => {
             try {
                 const response = await fetch(`${BACKEND_API_BASE_URL}/`); // Ping the backend root
-                setIsBackendOnline(response.ok); // Set true if response is ok (200-299 status)
+                const data = await response.json();
+                const isCurrentlyOnline = response.ok && data.status === 'online';
+                setIsBackendOnline(isCurrentlyOnline);
+
+                // If backend was offline and is now online, trigger a full page reload
+                if (!previousBackendStatus.current && isCurrentlyOnline) {
+                    window.location.reload();
+                }
+                previousBackendStatus.current = isCurrentlyOnline;
+
             } catch (error) {
                 console.error("Backend health check failed:", error);
                 setIsBackendOnline(false);
+                previousBackendStatus.current = false;
             }
         };
 
