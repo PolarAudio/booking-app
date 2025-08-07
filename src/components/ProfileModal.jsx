@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import Modal from './Modal'; // Import the base Modal component
 
-const ProfileModal = ({ show, onClose, newDisplayName, setNewDisplayName, handleUpdateProfile, handleUpdatePassword, profileLoading, profileError }) => {
+const ProfileModal = ({ show, onClose, newDisplayName, setNewDisplayName, handleUpdateProfile, handleUpdatePassword, profileLoading, profileError, userCredits }) => {
     const [newPassword, setNewPassword] = useState('');
     const [passwordUpdateLoading, setPasswordUpdateLoading] = useState(false);
     const [passwordUpdateError, setPasswordUpdateError] = useState(null);
@@ -28,6 +28,11 @@ const ProfileModal = ({ show, onClose, newDisplayName, setNewDisplayName, handle
             {profileError && <div className="bg-red-800 text-white px-4 py-2 rounded-lg mb-4 text-sm">{profileError}</div>}
             {passwordUpdateError && <div className="bg-red-800 text-white px-4 py-2 rounded-lg mb-4 text-sm">{passwordUpdateError}</div>}
             {passwordUpdateSuccess && <div className="bg-green-800 text-white px-4 py-2 rounded-lg mb-4 text-sm">{passwordUpdateSuccess}</div>}
+
+            <div className="mb-4">
+                <h3 className="text-lg font-semibold text-gray-300">Your Credits</h3>
+                <p className="text-2xl font-bold text-green-400">{userCredits}</p>
+            </div>
 
             <h3 className="text-lg font-semibold text-gray-300 mb-2">Update Display Name</h3>
             <input type="text" value={newDisplayName} onChange={e => setNewDisplayName(e.target.value)} placeholder="Your Display Name" className="w-full p-3 border border-gray-600 rounded-xl bg-gray-700 text-white" />

@@ -142,6 +142,7 @@ function BookingApp() {
     const [newDisplayName, setNewDisplayName] = useState('');
     const [profileLoading, setProfileLoading] = useState(false);
     const [profileError, setProfileError] = useState(null);
+    const [userCredits, setUserCredits] = useState(0);
 
     // Ref for scrolling to the booking form
     const bookingFormRef = useRef(null);
@@ -499,6 +500,15 @@ function BookingApp() {
 
     // --- Handle Booking Submission (new/update) ---
     const handleBooking = useCallback(async () => {
+    // Equipment validation
+    const hasPlayer = selectedEquipment.some(eq => eq.category === 'player');
+    const hasMixer = selectedEquipment.some(eq => eq.category === 'mixer');
+
+    if (!hasPlayer || !hasMixer) {
+        alert('Please select at least one Player and one Mixer before booking.');
+        return;
+    }
+
     // Use the global `auth` instance and ensure currentUser exists
     if (!selectedDate || !selectedTime || !userId || !auth.currentUser) {
         setError('Please select date, time and be logged in to book.');
@@ -510,7 +520,7 @@ function BookingApp() {
         const idToken = await auth.currentUser.getIdToken(); // Use the global `auth` instance
         const bookingDataToSend = {
             date: selectedDate, time: selectedTime, duration,
-            equipment: selectedEquipment.map(eq => ({ id: eq.id, name: eq.name, type: eq.type })),
+            equipment: selectedEquipment.map(eq => ({ id: eq.id, name: eq.name, type: eq.type, category: eq.category })),
             total: calculateTotal(), paymentMethod: selectedPaymentMethod,
             paymentStatus: 'pending',
             userTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -712,7 +722,7 @@ function BookingApp() {
                         <div className="bg-gray-800 shadow-2xl rounded-2xl p-8 mb-6 border border-gray-700">
                             <h2 className="text-2xl font-semibold text-orange-300 mb-6">💳 Select Payment Method</h2>
                             <div className="space-y-3">
-                                <PaymentOption value="online" label="Online Payment" selected={selectedPaymentMethod} onSelect={setSelectedPaymentMethod} />
+                                {/* <PaymentOption value="online" label="Online Payment" selected={selectedPaymentMethod} onSelect={setSelectedPaymentMethod} /> */}
                                 <PaymentOption value="cash" label="Cash on Arrival" selected={selectedPaymentMethod} onSelect={setSelectedPaymentMethod} />
                             </div>
                         </div>
@@ -754,7 +764,7 @@ function BookingApp() {
 
                         {/* Modals */}
                         <AuthModal show={showAuthModal} onClose={() => setShowAuthModal(false)} isLoginMode={isLoginMode} setIsLoginMode={setIsLoginMode} email={email} setEmail={setEmail} password={password} setPassword={setPassword} handleAuthAction={handleAuthAction} handleGoogleSignIn={handleGoogleSignIn} handleGuestLogin={handleGuestLogin} authError={authError} />
-                        <ProfileModal show={showProfileModal} onClose={() => setShowProfileModal(false)} newDisplayName={newDisplayName} setNewDisplayName={setNewDisplayName} handleUpdateProfile={handleUpdateProfile} handleUpdatePassword={handleUpdatePassword} profileLoading={profileLoading} profileError={profileError} />
+                        <ProfileModal show={showProfileModal} onClose={() => setShowProfileModal(false)} newDisplayName={newDisplayName} setNewDisplayName={setNewDisplayName} handleUpdateProfile={handleUpdateProfile} handleUpdatePassword={handleUpdatePassword} profileLoading={profileLoading} profileError={profileError} userCredits={userCredits} />
                         <ConfirmationModal show={showConfirmation} onClose={() => setShowConfirmation(false)} booking={currentBooking} isUpdate={!!editingBookingId} />
                         <DeleteConfirmationModal show={showDeleteConfirmation} onClose={() => setShowConfirmation(false)} booking={bookingToDelete} onConfirm={confirmDeleteBooking} />
                     </div>
