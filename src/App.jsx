@@ -148,60 +148,74 @@ function BookingApp() {
     const bookingFormRef = useRef(null);
 
 
-    // --- EFFECT 1: Handle Auth State and Custom Token ---
+	// --- EFFECT 1: Handle Auth State and Custom Token ---
     // This effect now only sets up the onAuthStateChanged listener
     // as `app`, `db`, `auth` are globally initialized.
     useEffect(() => {
         let unsubscribeAuth = () => {};
+        let unsubscribeProfile = () => {}; // To hold the profile listener unsubscribe function
+
         // Handle custom token from Canvas environment
         if (INITIAL_AUTH_TOKEN_FROM_CANVAS) {
             try {
-                // Use the global `auth` instance
                 signInWithCustomToken(auth, INITIAL_AUTH_TOKEN_FROM_CANVAS)
                     .then(() => console.log("Signed in with custom token."))
+                    .catch(error => console.error("Custom token sign-in error:", error));
             } catch (error) {
+                console.error("Error initializing custom token sign-in:", error);
             }
         }
+
         // Set up auth state listener using the global `auth` instance
-        unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+        unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+            // First, clean up any existing profile listener
+            if (unsubscribeProfile) {
+                unsubscribeProfile();
+            }
+
             if (user) {
                 setUserEmail(user.email);
                 setUserId(user.uid);
                 setAuthError(null);
 
-                try {
-                    setProfileLoading(true);
-                    setProfileError(null);
-                    const userProfileDocRef = doc(db, `artifacts/${APP_ID_FOR_FIRESTORE_PATH}/users/${user.uid}/profiles/userProfile`);
-                    const userProfileSnap = await getDoc(userProfileDocRef);
-
-                    let displayNameToUse = user.displayName || user.email || 'New User';
-                    if (userProfileSnap.exists()) {
-                        const profileData = userProfileSnap.data();
-                        displayNameToUse = profileData.displayName || displayNameToUse;
+                // --- REAL-TIME PROFILE LISTENER ---
+                const userProfileDocRef = doc(db, `artifacts/${APP_ID_FOR_FIRESTORE_PATH}/users/${user.uid}/profiles/userProfile`);
+                
+                unsubscribeProfile = onSnapshot(userProfileDocRef, (profileSnap) => {
+                    if (profileSnap.exists()) {
+                        const profileData = profileSnap.data();
+                        const displayNameToUse = profileData.displayName || user.displayName || user.email || 'New User';
+                        setUserName(displayNameToUse);
+                        setNewDisplayName(displayNameToUse);
+                        setUserCredits(profileData.credits || 0); // Update credits from real-time data
                     } else {
-                        await setDoc(userProfileDocRef, {
+                        // If profile doesn't exist, create it
+                        const displayNameToUse = user.displayName || user.email || 'New User';
+                        setDoc(userProfileDocRef, {
                             userId: user.uid,
                             displayName: displayNameToUse,
                             email: user.email,
+                            credits: 0, // Initialize credits
                             createdAt: serverTimestamp()
-                        }, { merge: true });
+                        }, { merge: true }).catch(err => console.error("Error creating user profile:", err));
+                        setUserName(displayNameToUse);
+                        setNewDisplayName(displayNameToUse);
+                        setUserCredits(0);
                     }
-                    setUserName(displayNameToUse);
-                    setNewDisplayName(displayNameToUse);
-
-                } catch (profileFetchError) {
-                    setProfileError(`Failed to load profile: ${profileFetchError.message}`);
-                    setUserName(user.uid);
-                } finally {
-                    setProfileLoading(false);
                     setShowAuthModal(false);
-                }
+                }, (error) => {
+                    console.error("Error listening to profile updates:", error);
+                    setProfileError(`Failed to load profile: ${error.message}`);
+                    // Fallback to basic user info if profile listener fails
+                    setUserName(user.displayName || user.email || 'New User');
+                });
 
             } else {
+                // User is signed out
                 setUserId(null);
                 setUserName('');
                 setNewDisplayName('');
+                setUserCredits(0);
                 setAuthError(null);
                 setProfileError(null);
                 setShowAuthModal(false);
@@ -211,8 +225,11 @@ function BookingApp() {
 
         return () => {
             unsubscribeAuth();
+            if (unsubscribeProfile) {
+                unsubscribeProfile();
+            }
         };
-    }, []); // Empty dependency array because `auth` is a global constant
+    }, []); // Empty dependency array because `auth` and `db` are global constants""
 
 
     // --- EFFECT 3: Firestore Bookings Real-time Listener (User-specific) ---
@@ -722,7 +739,9 @@ function BookingApp() {
                         <div className="bg-gray-800 shadow-2xl rounded-2xl p-8 mb-6 border border-gray-700">
                             <h2 className="text-2xl font-semibold text-orange-300 mb-6">💳 Select Payment Method</h2>
                             <div className="space-y-3">
-                                {/* <PaymentOption value="online" label="Online Payment" selected={selectedPaymentMethod} onSelect={setSelectedPaymentMethod} /> */}
+                                {userCredits > 0 && (
+                                    <PaymentOption value="credits" label={`Pay with Credits (${userCredits} available)`} selected={selectedPaymentMethod} onSelect={setSelectedPaymentMethod} />
+                                )}
                                 <PaymentOption value="cash" label="Cash on Arrival" selected={selectedPaymentMethod} onSelect={setSelectedPaymentMethod} />
                             </div>
                         </div>
