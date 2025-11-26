@@ -71,6 +71,9 @@ function BookingApp() {
     const [selectedDate, setSelectedDate] = useState('');
     const [isBackendOnline, setIsBackendOnline] = useState(true); // New state for backend status
     const previousBackendStatus = useRef(true); // Ref to store previous backend status
+    const [maintenanceMode, setMaintenanceMode] = useState(false);
+    const [maintenanceMessage, setMaintenanceMessage] = useState('');
+    const [isMaintenanceLoading, setIsMaintenanceLoading] = useState(true);
 
     // Effect for backend health check
     useEffect(() => {
@@ -94,14 +97,49 @@ function BookingApp() {
             }
         };
 
-        // Initial check
+        const checkMaintenanceStatus = async () => {
+            try {
+                const response = await fetch(`${BACKEND_API_BASE_URL}/api/maintenance-status`);
+                const data = await response.json();
+                setMaintenanceMode(data.isEnabled);
+                setMaintenanceMessage(data.message);
+            } catch (error) {
+                console.error("Maintenance status check failed:", error);
+                // In case of error, assume not in maintenance mode
+                setMaintenanceMode(false);
+            } finally {
+                setIsMaintenanceLoading(false);
+            }
+        };
+
         checkBackendStatus();
+        checkMaintenanceStatus();
 
         // Set up interval for periodic checks (e.g., every 10 seconds)
         const intervalId = setInterval(checkBackendStatus, 60000); 
 
         return () => clearInterval(intervalId); // Clean up interval on unmount
     }, []);
+
+    if (isMaintenanceLoading) {
+        return (
+            <div className="bg-gray-900 min-h-screen flex items-center justify-center text-orange-200 text-2xl p-4 text-center">
+                Loading...
+            </div>
+        );
+    }
+
+    if (maintenanceMode) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+                <div className="bg-red-800 p-8 rounded-lg shadow-xl w-full max-w-md border border-red-700 text-center">
+                    <h2 className="text-3xl font-bold text-white mb-4">Maintenance</h2>
+                    <p className="text-gray-200 mb-6">The service is currently not available. We are working on: {maintenanceMessage}</p>
+                </div>
+            </div>
+        );
+    }
+
     const [selectedTime, setSelectedTime] = useState('');
     const [duration, setDuration] = useState(2);
     const [selectedEquipment, setSelectedEquipment] = useState([]);
@@ -130,6 +168,7 @@ function BookingApp() {
     const [isLoadingBookings, setIsLoadingBookings] = useState(false);
     const [error, setError] = useState(null);
     const [authError, setAuthError] = useState(null);
+    const [isAuthLoading, setIsAuthLoading] = useState(false);
 
     // Authentication UI State
     const [showAuthModal, setShowAuthModal] = useState(false);
@@ -285,15 +324,21 @@ function BookingApp() {
                 const data = await response.json();
                 setBookedSlotsForDate(data.bookedSlots);
             } catch (fetchError) {
+                console.error("Error fetching booked slots:", fetchError);
+                // Display a more user-friendly message
+                setError('Could not load the schedule for this day. Please try again later.');
             }
         };
 
-        fetchBookedSlots();
-    }, [selectedDate, isLoadingAuth]);
+                fetchBookedSlots();
 
+            }, [selectedDate, isLoadingAuth, duration]); // Added duration to dependency array
 
-    // --- EFFECT 5: Handle Payment Confirmation Link ---
-    useEffect(() => {
+        
+
+            // --- EFFECT 5: Handle Payment Confirmation Link ---
+
+            useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const bookingIdFromUrl = urlParams.get('bookingId');
         const confirmPaymentFromUrl = async () => {
@@ -394,6 +439,7 @@ function BookingApp() {
             return;
         }
         setAuthError(null);
+        setIsAuthLoading(true);
         try {
             const userCredential = await action(); // `action` itself might use `auth` internally
             if (!isLoginMode) { // After sign-up
@@ -401,6 +447,8 @@ function BookingApp() {
             }
         } catch (error) {
             setAuthError(`Failed: ${error.message}`);
+        } finally {
+            setIsAuthLoading(false);
         }
     }, [email, password, isLoginMode]);
 
@@ -410,6 +458,7 @@ function BookingApp() {
             return;
         }
         setAuthError(null);
+        setIsAuthLoading(true);
         try {
             const result = await signInWithPopup(auth, new GoogleAuthProvider()); // Use the global `auth` instance
             // The onAuthStateChanged listener will handle setting user state and closing modal
@@ -418,6 +467,8 @@ function BookingApp() {
             // Log specific error codes for debugging
             if (error.code) {
             }
+        } finally {
+            setIsAuthLoading(false);
         }
     }, []);
 
@@ -429,11 +480,14 @@ function BookingApp() {
             return;
         }
         setAuthError(null);
+        setIsAuthLoading(true);
         try {
             await signInAnonymously(auth); // Use the global `auth` instance
             setShowAuthModal(false); // Close auth modal on successful guest login
         } catch (error) {
             setAuthError(`Guest login failed: ${error.message}`);
+        } finally {
+            setIsAuthLoading(false);
         }
     }, []);
 
@@ -549,7 +603,7 @@ function BookingApp() {
         });
 
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to confirm booking.');
+        if (!response.ok) throw new Error(data.error || 'Failed to confirm your booking. Please try again or contact support.');
 
         // Backend returns success and the actual booking ID (Firestore ID)
         setCurrentBooking({ ...bookingDataToSend, id: data.bookingId, userName: userName, timestamp: new Date(), paymentStatus: 'pending' });
@@ -598,7 +652,7 @@ function BookingApp() {
             });
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to cancel booking.');
+                throw new Error(data.error || 'Failed to cancel your booking. Please try again or contact support.');
             }
             // The onSnapshot listener will automatically remove the booking from the UI
         } catch (deleteError) {
@@ -767,6 +821,7 @@ function BookingApp() {
                                                 <div className="flex-grow mb-4 sm:mb-0">
                                                     <p className="font-medium text-gray-100">{formatDate(booking.date)} at {formatTime(booking.time)}</p>
                                                     <p className="text-xs text-gray-400 mt-1">Payment: {booking.paymentMethod} - <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${booking.paymentStatus === 'paid' ? 'bg-green-700 text-green-200' : 'bg-yellow-700 text-yellow-200'}`}>{booking.paymentStatus}</span></p>
+                                                    <p className={`text-xs mt-1 font-semibold ${booking.status === 'waiting for confirmation' ? 'text-yellow-400' : 'text-green-400'}`}>Status: {booking.status}</p>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <p className="font-bold text-orange-400">{formatIDR(booking.total)}</p>
@@ -782,10 +837,10 @@ function BookingApp() {
                         )}
 
                         {/* Modals */}
-                        <AuthModal show={showAuthModal} onClose={() => setShowAuthModal(false)} isLoginMode={isLoginMode} setIsLoginMode={setIsLoginMode} email={email} setEmail={setEmail} password={password} setPassword={setPassword} handleAuthAction={handleAuthAction} handleGoogleSignIn={handleGoogleSignIn} handleGuestLogin={handleGuestLogin} authError={authError} />
+                        <AuthModal show={showAuthModal} onClose={() => setShowAuthModal(false)} isLoginMode={isLoginMode} setIsLoginMode={setIsLoginMode} email={email} setEmail={setEmail} password={password} setPassword={setPassword} handleAuthAction={handleAuthAction} handleGoogleSignIn={handleGoogleSignIn} handleGuestLogin={handleGuestLogin} authError={authError} isLoading={isAuthLoading} />
                         <ProfileModal show={showProfileModal} onClose={() => setShowProfileModal(false)} newDisplayName={newDisplayName} setNewDisplayName={setNewDisplayName} handleUpdateProfile={handleUpdateProfile} handleUpdatePassword={handleUpdatePassword} profileLoading={profileLoading} profileError={profileError} userCredits={userCredits} />
                         <ConfirmationModal show={showConfirmation} onClose={() => setShowConfirmation(false)} booking={currentBooking} isUpdate={!!editingBookingId} />
-                        <DeleteConfirmationModal show={showDeleteConfirmation} onClose={() => setShowConfirmation(false)} booking={bookingToDelete} onConfirm={confirmDeleteBooking} />
+                        <DeleteConfirmationModal show={showDeleteConfirmation} onClose={() => setShowConfirmation(false)} booking={bookingToDelete} onConfirm={confirmDeleteBooking} isLoading={isLoadingBookings} />
                     </div>
                 </div>
             )} />
