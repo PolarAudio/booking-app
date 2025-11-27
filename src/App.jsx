@@ -779,5 +779,3 @@ setProfileError(`Failed to load profile: ${error.message}`);
 }
 
 export default BookingApp;
-
-export default BookingApp;
