@@ -484,7 +484,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
 
     const handleUpdatePassword = useCallback(async (newPassword) => {
         if (!auth.currentUser) throw new Error("No user logged in.");
-        if (newPassword.length < 6) throw throw new Error("Password must be at least 6 characters long.");
+        if (newPassword.length < 6) throw new Error("Password must be at least 6 characters long.");
         await updatePassword(auth.currentUser, newPassword);
     }, []);
 
