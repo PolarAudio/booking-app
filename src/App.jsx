@@ -54,6 +54,8 @@ import ConfirmationModal from './components/ConfirmationModal';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import EquipmentItem from './components/EquipmentItem';
 import PaymentOption from './components/PaymentOption';
+import Footer from './components/Footer'; // NEW
+import ContactFormModal from './components/ContactFormModal'; // NEW
 
 
 // --- Canvas Environment Variables ---
@@ -118,6 +120,9 @@ function BookingApp() {
     const [profileLoading, setProfileLoading] = useState(false);
     const [profileError, setProfileError] = useState(null);
     const [userCredits, setUserCredits] = useState(0);
+
+    // Contact Form Modal State
+    const [showContactFormModal, setShowContactFormModal] = useState(false); // NEW STATE
 
     // Ref for scrolling
     const bookingFormRef = useRef(null);
@@ -479,7 +484,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
 
     const handleUpdatePassword = useCallback(async (newPassword) => {
         if (!auth.currentUser) throw new Error("No user logged in.");
-        if (newPassword.length < 6) throw new Error("Password must be at least 6 characters long.");
+        if (newPassword.length < 6) throw throw new Error("Password must be at least 6 characters long.");
         await updatePassword(auth.currentUser, newPassword);
     }, []);
 
@@ -611,8 +616,8 @@ setProfileError(`Failed to load profile: ${error.message}`);
 
     // --- Main App Render ---
     return (
-        <div className="min-h-screen bg-gray-900 p-4 font-sans">
-            <div className="max-w-4xl mx-auto">
+        <div className="min-h-screen bg-gray-900 p-4 font-sans flex flex-col"> {/* Added flex-col */}
+            <div className="max-w-4xl mx-auto flex-grow"> {/* Added flex-grow */}
                 {/* Header Section */}
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-bold text-orange-400 mb-2">POLAR SHOWROOM</h1>
@@ -762,8 +767,17 @@ setProfileError(`Failed to load profile: ${error.message}`);
                 <ConfirmationModal show={showConfirmation} onClose={() => setShowConfirmation(false)} booking={currentBooking} isUpdate={!!editingBookingId} />
                 <DeleteConfirmationModal show={showDeleteConfirmation} onClose={() => setShowDeleteConfirmation(false)} booking={bookingToDelete} onConfirm={confirmDeleteBooking} isLoading={isLoadingBookings} />
             </div>
+            <Footer onContactClick={() => setShowContactFormModal(true)} /> {/* NEW */}
+            <ContactFormModal 
+                show={showContactFormModal} 
+                onClose={() => setShowContactFormModal(false)} 
+                userEmail={userEmail} 
+                userName={userName} 
+            /> {/* NEW */}
         </div>
     );
 }
+
+export default BookingApp;
 
 export default BookingApp;

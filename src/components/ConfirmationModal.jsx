@@ -16,6 +16,10 @@ const ConfirmationModal = ({ show, onClose, booking, isUpdate }) => {
                     <p><strong>Total:</strong> {formatIDR(booking.total)}</p>
                     <p><strong>Status:</strong> <span className="font-semibold text-yellow-400">PENDING</span></p>
                 </div>
+                <p className="text-gray-300 mb-6 text-center">
+                    Your booking has been created and is waiting for approval by the admins.
+                    You will receive a confirmation email once your booking is approved.
+                </p>
                 <button onClick={onClose} className="bg-orange-600 text-white px-6 py-3 rounded-xl hover:bg-orange-700 w-full">Awesome!</button>
             </div>
         </Modal>
