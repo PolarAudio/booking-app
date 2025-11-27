@@ -628,7 +628,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
                             // Modified this section to offer guest login or full auth
                             <>
                                 <button onClick={() => setShowAuthModal(true)} className="px-6 py-3 bg-orange-600 text-white rounded-xl text-lg font-semibold hover:bg-orange-700 transition shadow-lg">Sign In / Sign Up</button>
-                                /* <button onClick={handleGuestLogin} className="px-6 py-3 bg-gray-700 text-gray-300 rounded-xl text-lg font-semibold hover:bg-gray-600 transition shadow-lg">Login as Guest</button> */
+                                <button onClick={handleGuestLogin} className="px-6 py-3 bg-gray-700 text-gray-300 rounded-xl text-lg font-semibold hover:bg-gray-600 transition shadow-lg">Login as Guest</button>
                             </>
                         )}
                     </div>
