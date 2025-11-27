@@ -718,9 +718,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
                 <div className="bg-gray-800 shadow-2xl rounded-2xl p-8 mb-6 border border-gray-700">
                     <h2 className="text-2xl font-semibold text-orange-300 mb-6">💳 Select Payment Method</h2>
                     <div className="space-y-3">
-                        {userCredits > 0 && (
-                            <PaymentOption value="credits" label={`Pay with Credits (${userCredits} available)`} selected={selectedPaymentMethod} onSelect={setSelectedPaymentMethod} />
-                        )}
+                            <PaymentOption value="credits" label={`Pay with Credits (${userCredits} available)`} selected={selectedPaymentMethod} onSelect={setSelectedPaymentMethod} creditBalance={userCredits} />
                         <PaymentOption value="cash" label="Cash on Arrival" selected={selectedPaymentMethod} onSelect={setSelectedPaymentMethod} />
                     </div>
                 </div>
