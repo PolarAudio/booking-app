@@ -588,7 +588,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
             <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
                 <div className="bg-red-800 p-8 rounded-lg shadow-xl w-full max-w-md border border-red-700 text-center">
                     <h2 className="text-3xl font-bold text-white mb-4">Maintenance</h2>
-                    <p className="text-gray-200 mb-6">The service is currently not available. We are working on: {maintenanceMessage}</p>
+                    <p className="text-gray-200 mb-6">The service is currently not available.<br /> We are working on:<br /> {maintenanceMessage}</p>
                 </div>
             </div>
         );
@@ -607,7 +607,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
             <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
                 <div className="bg-red-800 p-8 rounded-lg shadow-xl w-full max-w-md border border-red-700 text-center">
                     <h2 className="text-3xl font-bold text-white mb-4">Server Offline or Under Maintenance</h2>
-                    <p className="text-gray-200 mb-6">We are currently working on new features. Please try again in some Minutes.</p>
+                    <p className="text-gray-200 mb-6">We are currently working on back-end features. Please try again in some Minutes.</p>
 					<p className="text-gray-200 mb-6">If the Page is not back online after 10 Minutes contact the <a href="mailto:polarsolutions.warehouse@gmail.com">Admin</a></p>
                 </div>
             </div>
