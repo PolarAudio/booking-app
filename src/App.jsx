@@ -323,8 +323,8 @@ setProfileError(`Failed to load profile: ${error.message}`);
 
     // --- Memoized values ---
     const today = useMemo(() => new Date().toISOString().split('T')[0], []);
-    const timeSlots = useMemo(() => Array.from({ length: 8 }, (_, i) => {
-        const hour = 9 + i;
+    const timeSlots = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+        const hour = 10 + i;
         const time24 = `${hour.toString().padStart(2, '0')}:00`;
         const time12 = moment(time24, 'HH:mm').format('h:mm A');
         return { value: time24, label: time12 };
