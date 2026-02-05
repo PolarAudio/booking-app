@@ -40,7 +40,7 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions'; 
 
 // Import constants and utilities
-import { DJ_EQUIPMENT, ROOM_RATE_PER_HOUR } from './constants';
+import { DJ_EQUIPMENT, ROOM_RATE_PER_HOUR, EXTRA_EQUIPMENT_PRICE } from './constants';
 import { formatIDR, formatDate, formatTime, getEndTime } from './utils';
 
 // Import the new Firebase project ID utility
@@ -81,6 +81,7 @@ function BookingApp() {
     const [selectedTime, setSelectedTime] = useState('');
     const [duration, setDuration] = useState(2);
     const [selectedEquipment, setSelectedEquipment] = useState([]);
+    const [cdjCount, setCdjCount] = useState(2);
     const [bookings, setBookings] = useState([]);
     const [showConfirmation, setShowConfirmation] = useState(false);
     const [currentBooking, setCurrentBooking] = useState(null);
@@ -112,6 +113,7 @@ function BookingApp() {
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [guestName, setGuestName] = useState('');
     const [isLoginMode, setIsLoginMode] = useState(true);
 
     // Profile Management State
@@ -363,7 +365,12 @@ setProfileError(`Failed to load profile: ${error.message}`);
         });
     }, [selectedDate, bookedSlotsForDate, timeSlots, duration, editingBookingId, today]);
 
-    const calculateTotal = useCallback(() => ROOM_RATE_PER_HOUR * duration, [duration]);
+    const calculateTotal = useCallback(() => {
+        const basePrice = ROOM_RATE_PER_HOUR * duration;
+        const extrasCount = selectedEquipment.filter(eq => eq.category === 'extra').length;
+        const extraCdjs = (selectedEquipment.some(eq => eq.id === 1) && cdjCount > 2) ? (cdjCount - 2) : 0;
+        return basePrice + ((extrasCount + extraCdjs) * EXTRA_EQUIPMENT_PRICE);
+    }, [duration, selectedEquipment, cdjCount]);
     const players = useMemo(() => DJ_EQUIPMENT.filter(eq => eq.category === 'player'), []);
     const mixers = useMemo(() => DJ_EQUIPMENT.filter(eq => eq.category === 'mixer'), []);
     const extra = useMemo(() => DJ_EQUIPMENT.filter(eq => eq.category === 'extra'), []);
@@ -375,10 +382,19 @@ setProfileError(`Failed to load profile: ${error.message}`);
     }, []);
 
     const toggleEquipment = useCallback((equipment) => {
-        setSelectedEquipment(prev => prev.some(item => item.id === equipment.id)
-            ? prev.filter(item => item.id !== equipment.id)
-            : [...prev, equipment]
-        );
+        setSelectedEquipment(prev => {
+            const isAlreadySelected = prev.some(item => item.id === equipment.id);
+            
+            if (isAlreadySelected) {
+                return prev.filter(item => item.id !== equipment.id);
+            } else {
+                if (equipment.category === 'mixer') {
+                    // Remove any existing mixer and add the new one
+                    return [...prev.filter(item => item.category !== 'mixer'), equipment];
+                }
+                return [...prev, equipment];
+            }
+        });
     }, []);
 
     const handleAuthAction = useCallback(async (action) => {
@@ -413,16 +429,40 @@ setProfileError(`Failed to load profile: ${error.message}`);
         }
     }, []);
 
-    const handleGuestLogin = useCallback(async () => {
+    const handleGuestLogin = useCallback(async (name) => {
         if (!auth) {
             setAuthError("Auth service not ready.");
+            return;
+        }
+        
+        // Ensure name is a string and not an event object or something else
+        const processedName = (typeof name === 'string') ? name.trim() : '';
+
+        if (!processedName) {
+            setAuthError("Please enter your name to continue as guest.");
             return;
         }
         setAuthError(null);
         setIsAuthLoading(true);
         try {
-            await signInAnonymously(auth);
+            const userCredential = await signInAnonymously(auth);
+            const user = userCredential.user;
+            
+            // Update profile with the provided guest name
+            await updateProfile(user, { displayName: processedName });
+            
+            // Also create/update the firestore profile
+            const userProfileDocRef = doc(db, `artifacts/${APP_ID_FOR_FIRESTORE_PATH}/users/${user.uid}/profiles/userProfile`);
+            await setDoc(userProfileDocRef, {
+                userId: user.uid,
+                displayName: processedName,
+                email: 'Guest User',
+                credits: 0,
+                createdAt: serverTimestamp()
+            }, { merge: true });
+
             setShowAuthModal(false);
+            setGuestName(''); // Reset guest name
         } catch (error) {
             setAuthError(`Guest login failed: ${error.message}`);
         } finally {
@@ -445,6 +485,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
             setSelectedTime('');
             setDuration(2);
             setSelectedEquipment([]);
+            setCdjCount(2);
             setSelectedPaymentMethod('cash');
             setError(null);
             setAuthError(null);
@@ -507,6 +548,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
             const bookingDataToSend = {
                 date: selectedDate, time: selectedTime, duration,
                 equipment: selectedEquipment.map(eq => ({ id: eq.id, name: eq.name, type: eq.type, category: eq.category })),
+                cdjCount: selectedEquipment.some(eq => eq.id === 1) ? cdjCount : 0,
                 total: calculateTotal(), paymentMethod: selectedPaymentMethod,
                 paymentStatus: 'pending',
                 userTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -526,6 +568,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
             setSelectedTime('');
             setDuration(2);
             setSelectedEquipment([]);
+            setCdjCount(2);
         } catch (bookingError) {
             setError(`Failed to book session: ${bookingError.message}`);
         } finally {
@@ -539,6 +582,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
         setSelectedTime(booking.time);
         setDuration(booking.duration);
         setSelectedEquipment(booking.equipment || []);
+        setCdjCount(booking.cdjCount || 2);
         setSelectedPaymentMethod(booking.paymentMethod || 'cash');
         setError(null);
         bookingFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -630,11 +674,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
                                 <button onClick={handleLogout} className="px-4 py-2 bg-red-600 text-white rounded-xl text-sm hover:bg-red-700 transition shadow-lg">Logout</button>
                             </>
                         ) : (
-                            // Modified this section to offer guest login or full auth
-                            <>
-                                <button onClick={() => setShowAuthModal(true)} className="px-6 py-3 bg-orange-600 text-white rounded-xl text-lg font-semibold hover:bg-orange-700 transition shadow-lg">Sign In / Sign Up</button>
-                                <button onClick={handleGuestLogin} className="px-6 py-3 bg-gray-700 text-gray-300 rounded-xl text-lg font-semibold hover:bg-gray-600 transition shadow-lg">Login as Guest</button>
-                            </>
+                            <button onClick={() => setShowAuthModal(true)} className="px-8 py-3 bg-orange-600 text-white rounded-xl text-lg font-semibold hover:bg-orange-700 transition shadow-lg">Sign In / Sign Up</button>
                         )}
                     </div>
                 </div>
@@ -680,7 +720,21 @@ setProfileError(`Failed to load profile: ${error.message}`);
                             <div className="space-y-3 text-gray-300">
                                 <div className="flex justify-between text-sm"><span>Room Rate (per hour)</span><span>{formatIDR(ROOM_RATE_PER_HOUR)}</span></div>
                                 <div className="flex justify-between text-sm"><span>Duration</span><span>{duration} hours</span></div>
-                                <div className="flex justify-between text-sm"><span>Equipment</span><span className="text-green-400">Included</span></div>
+                                <div className="flex justify-between text-sm">
+                                    <span>Extra Equipment</span>
+                                    {(() => {
+                                        const extrasCount = selectedEquipment.filter(eq => eq.category === 'extra').length;
+                                        const extraCdjs = (selectedEquipment.some(eq => eq.id === 1) && cdjCount > 2) ? (cdjCount - 2) : 0;
+                                        const totalExtras = extrasCount + extraCdjs;
+                                        return (
+                                            <span className={totalExtras > 0 ? 'text-orange-300' : 'text-green-400'}>
+                                                {totalExtras > 0 
+                                                    ? `+ ${formatIDR(totalExtras * EXTRA_EQUIPMENT_PRICE)}`
+                                                    : '0'}
+                                            </span>
+                                        );
+                                    })()}
+                                </div>
                                 <hr className="my-3 border-gray-600" />
                                 <div className="flex justify-between font-semibold text-lg"><span>Total</span><span className="text-orange-400">{formatIDR(calculateTotal())}</span></div>
                             </div>
@@ -702,12 +756,29 @@ setProfileError(`Failed to load profile: ${error.message}`);
                           {players.map(eq => <EquipmentItem key={eq.id} equipment={eq} isSelected={selectedEquipment.some(i => i.id === eq.id)} onToggle={toggleEquipment} />)}
                         </div>
 
+                        {selectedEquipment.some(eq => eq.id === 1) && (
+                            <div className="mt-4 p-4 bg-gray-700 rounded-xl border border-orange-500/30">
+                                <label className="block text-sm font-medium text-orange-200 mb-3">Number of CDJ-3000s +50.000Rp per Extra Player</label>
+                                <div className="flex gap-4">
+                                    {[2, 3, 4].map(num => (
+                                        <button
+                                            key={num}
+                                            onClick={() => setCdjCount(num)}
+                                            className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${cdjCount === num ? 'bg-orange-600 text-white shadow-lg' : 'bg-gray-600 text-gray-400 hover:bg-gray-500'}`}
+                                        >
+                                            {num} Players
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <h3 className="text-lg font-semibold text-gray-300 mb-2 mt-4">Mixers</h3>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4"> {/* Optional: add grid here */}
                           {mixers.map(eq => <EquipmentItem key={eq.id} equipment={eq} isSelected={selectedEquipment.some(i => i.id === eq.id)} onToggle={toggleEquipment} />)}
                         </div>
 								
-								<h3 className="text-lg font-semibold text-gray-300 mb-2 mt-4">Extra</h3>
+								<h3 className="text-lg font-semibold text-gray-300 mb-2 mt-4">Extra +50.000Rp per Extra</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> {/* Optional: add grid here */}
                           {extra.map(eq => <EquipmentItem key={eq.id} equipment={eq} isSelected={selectedEquipment.some(i => i.id === eq.id)} onToggle={toggleEquipment} />)}
                         </div>
@@ -743,6 +814,10 @@ setProfileError(`Failed to load profile: ${error.message}`);
                                     <div key={booking.id} className="bg-gray-700 rounded-lg p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center border border-gray-600">
                                         <div className="flex-grow mb-4 sm:mb-0">
                                             <p className="font-medium text-gray-100">{formatDate(booking.date)} at {formatTime(booking.time)}</p>
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                Equipment: {booking.equipment?.map(e => e.name).join(', ')} 
+                                                {booking.cdjCount > 0 ? ` (${booking.cdjCount}x CDJ-3000)` : ''}
+                                            </p>
                                             <p className="text-xs text-gray-400 mt-1">Payment: {booking.paymentMethod} - <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${booking.paymentStatus === 'paid' ? 'bg-green-700 text-green-200' : 'bg-yellow-700 text-yellow-200'}`}>{booking.paymentStatus}</span></p>
                                             <p className={`text-xs mt-1 font-semibold ${booking.status === 'waiting for confirmation' ? 'text-yellow-400' : 'text-green-400'}`}>Status: {booking.status}</p>
                                         </div>
@@ -760,7 +835,23 @@ setProfileError(`Failed to load profile: ${error.message}`);
                 )}
 
                 {/* Modals */}
-                <AuthModal show={showAuthModal} onClose={() => setShowAuthModal(false)} isLoginMode={isLoginMode} setIsLoginMode={setIsLoginMode} email={email} setEmail={setEmail} password={password} setPassword={setPassword} handleAuthAction={handleAuthAction} handleGoogleSignIn={handleGoogleSignIn} handleGuestLogin={handleGuestLogin} authError={authError} isLoading={isAuthLoading} />
+                <AuthModal 
+                    show={showAuthModal} 
+                    onClose={() => setShowAuthModal(false)} 
+                    isLoginMode={isLoginMode} 
+                    setIsLoginMode={setIsLoginMode} 
+                    email={email} 
+                    setEmail={setEmail} 
+                    password={password} 
+                    setPassword={setPassword} 
+                    guestName={guestName}
+                    setGuestName={setGuestName}
+                    handleAuthAction={handleAuthAction} 
+                    handleGoogleSignIn={handleGoogleSignIn} 
+                    handleGuestLogin={() => handleGuestLogin(guestName)} 
+                    authError={authError} 
+                    isLoading={isAuthLoading} 
+                />
                 <ProfileModal show={showProfileModal} onClose={() => setShowProfileModal(false)} newDisplayName={newDisplayName} setNewDisplayName={setNewDisplayName} handleUpdateProfile={handleUpdateProfile} handleUpdatePassword={handleUpdatePassword} profileLoading={profileLoading} profileError={profileError} userCredits={userCredits} />
                 <ConfirmationModal show={showConfirmation} onClose={() => setShowConfirmation(false)} booking={currentBooking} isUpdate={!!editingBookingId} />
                 <DeleteConfirmationModal show={showDeleteConfirmation} onClose={() => setShowDeleteConfirmation(false)} booking={bookingToDelete} onConfirm={confirmDeleteBooking} isLoading={isLoadingBookings} />

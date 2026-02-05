@@ -13,6 +13,7 @@ const ConfirmationModal = ({ show, onClose, booking, isUpdate }) => {
                 <div className="text-left bg-gray-700 rounded-lg p-4 mb-6 text-gray-200 space-y-1">
                     <p><strong>Date:</strong> {formatDate(booking.date)}</p>
                     <p><strong>Time:</strong> {formatTime(booking.time)}</p>
+                    {booking.cdjCount > 0 && <p><strong>CDJ-3000s:</strong> {booking.cdjCount}</p>}
                     <p><strong>Total:</strong> {formatIDR(booking.total)}</p>
                     <p><strong>Status:</strong> <span className="font-semibold text-yellow-400">PENDING</span></p>
                 </div>
