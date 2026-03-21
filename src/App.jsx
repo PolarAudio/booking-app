@@ -337,13 +337,18 @@ setProfileError(`Failed to load profile: ${error.message}`);
             return timeSlots.map(slot => ({ ...slot, disabled: true, label: slot.label + ' (Select a date)' }));
         }
         const closingTime = moment(`${selectedDate} 18:00`, 'YYYY-MM-DD HH:mm');
+        const isSunday = moment(selectedDate).day() === 0;
+
         return timeSlots.map(slot => {
             const slotStartMoment = moment(`${selectedDate} ${slot.value}`, 'YYYY-MM-DD HH:mm');
             const proposedEndMoment = slotStartMoment.clone().add(duration, 'hours');
             let isDisabled = false;
             let disabledReason = '';
 
-            if (proposedEndMoment.isAfter(closingTime)) {
+            if (isSunday) {
+                isDisabled = true;
+                disabledReason = 'Closed on Sunday';
+            } else if (proposedEndMoment.isAfter(closingTime)) {
                 isDisabled = true;
                 disabledReason = `Ends past ${closingTime.format('h:mm A')}`;
             } else if (selectedDate === today && slotStartMoment.isBefore(moment())) {
@@ -704,7 +709,13 @@ setProfileError(`Failed to load profile: ${error.message}`);
                                         <option key={slot.value} value={slot.value} disabled={slot.disabled} className={slot.disabled ? 'text-gray-500' : ''}>{slot.label}</option>
                                     ))}
                                 </select>
-                                {selectedDate && availableTimeSlotsForDisplay.every(s => s.disabled) && <p className="text-red-300 text-sm mt-2">No available slots for this date with the selected duration.</p>}
+                                {selectedDate && availableTimeSlotsForDisplay.every(s => s.disabled) && (
+                                    <p className="text-red-300 text-sm mt-2">
+                                        {moment(selectedDate).day() === 0 
+                                            ? "The studio is closed on Sundays. Please select another day." 
+                                            : "No available slots for this date with the selected duration."}
+                                    </p>
+                                )}
                             </div>
                             <div>
                                 <label htmlFor="select-duration" className="block text-sm font-medium text-gray-300 mb-2">Duration (hours)</label>
