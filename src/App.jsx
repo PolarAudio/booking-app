@@ -87,6 +87,7 @@ function BookingApp() {
     const [currentBooking, setCurrentBooking] = useState(null);
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('cash');
     const [paymentConfirmMessage, setPaymentConfirmMessage] = useState(null);
+    const [notes, setNotes] = useState('');
 
     // Edit/Cancel specific state
     const [editingBookingId, setEditingBookingId] = useState(null);
@@ -492,6 +493,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
             setSelectedEquipment([]);
             setCdjCount(2);
             setSelectedPaymentMethod('cash');
+            setNotes('');
             setError(null);
             setAuthError(null);
             setProfileError(null);
@@ -556,7 +558,8 @@ setProfileError(`Failed to load profile: ${error.message}`);
                 cdjCount: selectedEquipment.some(eq => eq.id === 1) ? cdjCount : 0,
                 total: calculateTotal(), paymentMethod: selectedPaymentMethod,
                 paymentStatus: 'pending',
-                userTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                userTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                notes: notes.trim()
             };
             const response = await fetch(`${BACKEND_API_BASE_URL}/api/confirm-booking`, {
                 method: 'POST',
@@ -574,6 +577,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
             setDuration(2);
             setSelectedEquipment([]);
             setCdjCount(2);
+            setNotes('');
         } catch (bookingError) {
             setError(`Failed to book session: ${bookingError.message}`);
         } finally {
@@ -589,6 +593,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
         setSelectedEquipment(booking.equipment || []);
         setCdjCount(booking.cdjCount || 2);
         setSelectedPaymentMethod(booking.paymentMethod || 'cash');
+        setNotes(booking.notes || '');
         setError(null);
         bookingFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, []);
@@ -725,6 +730,17 @@ setProfileError(`Failed to load profile: ${error.message}`);
                                     <option value={4}>4 hours</option>
                                 </select>
                             </div>
+                            <div className="mt-4">
+                                <label htmlFor="booking-notes" className="block text-sm font-medium text-gray-300 mb-2">Notes / Special Requests (Optional)</label>
+                                <textarea
+                                    id="booking-notes"
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    placeholder="Let admins know if you have further information or need to update the time to a slot not listed."
+                                    rows="3"
+                                    className="w-full p-3 border border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 bg-gray-700 text-white placeholder-gray-400 text-sm resize-none"
+                                />
+                            </div>
                         </div>
                         <div className="bg-gray-700 rounded-xl p-6 border border-gray-600">
                             <h3 className="text-xl font-semibold text-orange-300 mb-4">💰 Booking Summary</h3>
@@ -830,6 +846,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
                                                 {booking.cdjCount > 0 ? ` (${booking.cdjCount}x CDJ-3000)` : ''}
                                             </p>
                                             <p className="text-xs text-gray-400 mt-1">Payment: {booking.paymentMethod} - <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${booking.paymentStatus === 'paid' ? 'bg-green-700 text-green-200' : 'bg-yellow-700 text-yellow-200'}`}>{booking.paymentStatus}</span></p>
+                                            {booking.notes && <p className="text-xs text-gray-300 mt-1 italic">Notes: "{booking.notes}"</p>}
                                             <p className={`text-xs mt-1 font-semibold ${booking.status === 'waiting for confirmation' ? 'text-yellow-400' : 'text-green-400'}`}>Status: {booking.status}</p>
                                         </div>
                                         <div className="flex items-center gap-2">
