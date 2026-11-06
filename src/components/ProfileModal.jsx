@@ -2,11 +2,16 @@
 import React, { useState } from 'react';
 import Modal from './Modal'; // Import the base Modal component
 
-const ProfileModal = ({ show, onClose, newDisplayName, setNewDisplayName, handleUpdateProfile, handleUpdatePassword, profileLoading, profileError, userCredits }) => {
+const ProfileModal = ({ show, onClose, newDisplayName, setNewDisplayName, handleUpdateProfile, handleUpdatePassword, handleUpdateEmail, profileLoading, profileError, userCredits, userEmail }) => {
     const [newPassword, setNewPassword] = useState('');
     const [passwordUpdateLoading, setPasswordUpdateLoading] = useState(false);
     const [passwordUpdateError, setPasswordUpdateError] = useState(null);
     const [passwordUpdateSuccess, setPasswordUpdateSuccess] = useState(null);
+
+    const [newEmail, setNewEmail] = useState('');
+    const [emailUpdateLoading, setEmailUpdateLoading] = useState(false);
+    const [emailUpdateError, setEmailUpdateError] = useState(null);
+    const [emailUpdateSuccess, setEmailUpdateSuccess] = useState(null);
 
     const onPasswordUpdate = async () => {
         setPasswordUpdateLoading(true);
@@ -23,18 +28,48 @@ const ProfileModal = ({ show, onClose, newDisplayName, setNewDisplayName, handle
         }
     };
 
+    const onEmailUpdate = async () => {
+        setEmailUpdateLoading(true);
+        setEmailUpdateError(null);
+        setEmailUpdateSuccess(null);
+        try {
+            await handleUpdateEmail(newEmail);
+            setEmailUpdateSuccess('Email updated successfully!');
+            setNewEmail(''); // Clear email field on success
+        } catch (error) {
+            setEmailUpdateError(error.message);
+        } finally {
+            setEmailUpdateLoading(false);
+        }
+    };
+
     return (
         <Modal show={show} onClose={onClose} title="Manage Profile">
             {profileError && <div className="bg-red-800 text-white px-4 py-2 rounded-lg mb-4 text-sm">{profileError}</div>}
             {passwordUpdateError && <div className="bg-red-800 text-white px-4 py-2 rounded-lg mb-4 text-sm">{passwordUpdateError}</div>}
             {passwordUpdateSuccess && <div className="bg-green-800 text-white px-4 py-2 rounded-lg mb-4 text-sm">{passwordUpdateSuccess}</div>}
+            {emailUpdateError && <div className="bg-red-800 text-white px-4 py-2 rounded-lg mb-4 text-sm">{emailUpdateError}</div>}
+            {emailUpdateSuccess && <div className="bg-green-800 text-white px-4 py-2 rounded-lg mb-4 text-sm">{emailUpdateSuccess}</div>}
+
+            {!userEmail && (
+                <div className="bg-yellow-900/40 border border-yellow-700 text-yellow-200 px-4 py-2 rounded-lg mb-4 text-sm">
+                    Your account has no email address yet. An email is required to make new bookings and receive confirmations. Add one below.
+                </div>
+            )}
 
             <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-300">Your Credits</h3>
                 <p className="text-2xl font-bold text-green-400">{userCredits}</p>
             </div>
 
-            <h3 className="text-lg font-semibold text-gray-300 mb-2">Update Display Name</h3>
+            <h3 className="text-lg font-semibold text-gray-300 mb-2">Email Address</h3>
+            <p className="text-sm text-gray-400 mb-2">Current: <span className="text-gray-200">{userEmail || 'Not set (Guest account)'}</span></p>
+            <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="you@example.com" className="w-full p-3 border border-gray-600 rounded-xl bg-gray-700 text-white" />
+            <div className="mt-4 flex gap-4">
+                <button onClick={onEmailUpdate} disabled={emailUpdateLoading || !newEmail.trim()} className="w-full py-3 bg-orange-600 text-white rounded-xl font-semibold hover:bg-orange-700 disabled:bg-gray-500">{emailUpdateLoading ? 'Updating...' : (userEmail ? 'Update Email' : 'Set Email')}</button>
+            </div>
+
+            <h3 className="text-lg font-semibold text-gray-300 mt-6 mb-2">Update Display Name</h3>
             <input type="text" value={newDisplayName} onChange={e => setNewDisplayName(e.target.value)} placeholder="Your Display Name" className="w-full p-3 border border-gray-600 rounded-xl bg-gray-700 text-white" />
             <div className="mt-4 flex gap-4">
                 <button onClick={handleUpdateProfile} disabled={profileLoading} className="w-full py-3 bg-orange-600 text-white rounded-xl font-semibold hover:bg-orange-700 disabled:bg-gray-500">{profileLoading ? 'Updating...' : 'Update Display Name'}</button>

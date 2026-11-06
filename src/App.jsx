@@ -22,7 +22,8 @@ import {
     signInWithPopup, 
     signInAnonymously,
     updateProfile,
-    updatePassword
+    updatePassword,
+    updateEmail
 } from 'firebase/auth'; 
 
 // Import specific Firebase Firestore functions needed in this file
@@ -50,6 +51,7 @@ import { getFirebaseProjectId } from './firebase/utils'; // <--- NEW IMPORT
 import Modal from './components/Modal';
 import AuthModal from './components/AuthModal';
 import ProfileModal from './components/ProfileModal';
+import MissingInfoModal from './components/MissingInfoModal';
 import ConfirmationModal from './components/ConfirmationModal';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import EquipmentItem from './components/EquipmentItem';
@@ -123,6 +125,9 @@ function BookingApp() {
     const [profileLoading, setProfileLoading] = useState(false);
     const [profileError, setProfileError] = useState(null);
     const [userCredits, setUserCredits] = useState(0);
+
+    // Missing Information Modal State
+    const [showMissingInfoModal, setShowMissingInfoModal] = useState(false);
 
     // Contact Form Modal State
     const [showContactFormModal, setShowContactFormModal] = useState(false); // NEW STATE
@@ -221,6 +226,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
 
             } else {
                 setUserId(null);
+                setUserEmail(null);
                 setUserName('');
                 setNewDisplayName('');
                 setUserCredits(0);
@@ -482,6 +488,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
             await signOut(auth);
             // Full state reset
             setUserId(null);
+            setUserEmail(null);
             setUserName('');
             setNewDisplayName('');
             setBookings([]);
@@ -502,6 +509,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
             setShowDeleteConfirmation(false);
             setShowAuthModal(false);
             setShowProfileModal(false);
+            setShowMissingInfoModal(false);
         } catch (error) {
             setError(`Logout failed: ${error.message}`);
         }
@@ -536,6 +544,52 @@ setProfileError(`Failed to load profile: ${error.message}`);
         await updatePassword(auth.currentUser, newPassword);
     }, []);
 
+    // --- Profile Completeness ---
+    const missingProfileInfo = useMemo(() => {
+        const missing = [];
+        if (userId && !userEmail) {
+            missing.push({
+                label: 'Email address',
+                reason: 'Guest accounts do not have an email yet. An email is required so we can confirm your booking and send you the payment and confirmation details.'
+            });
+        }
+        return missing;
+    }, [userId, userEmail]);
+
+    const handleUpdateEmail = useCallback(async (emailToUpdate) => {
+        if (!auth.currentUser) throw new Error('No user logged in.');
+        const trimmedEmail = (emailToUpdate || '').trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+            throw new Error('Please enter a valid email address.');
+        }
+        if (auth.currentUser.email && trimmedEmail === auth.currentUser.email) {
+            throw new Error('This is already your current email address.');
+        }
+        try {
+            await updateEmail(auth.currentUser, trimmedEmail);
+        } catch (authError) {
+            switch (authError?.code) {
+                case 'auth/email-already-in-use':
+                    throw new Error('This email is already in use by another account. Please use a different email.');
+                case 'auth/invalid-email':
+                    throw new Error('That email address is invalid. Please check it and try again.');
+                case 'auth/requires-recent-login':
+                    throw new Error('For security reasons, please sign out and sign in again, then update your email.');
+                case 'auth/operation-not-allowed':
+                    throw new Error('Email changes are not allowed for this account type. Please sign in with email/password or Google instead.');
+                default:
+                    throw new Error(`Failed to update email: ${authError?.message || 'Unknown error'}`);
+            }
+        }
+        // Also keep the Firestore profile in sync so admins can see the contact email
+        const userProfileDocRef = doc(db, `artifacts/${APP_ID_FOR_FIRESTORE_PATH}/users/${userId}/profiles/userProfile`);
+        await setDoc(userProfileDocRef, {
+            email: trimmedEmail,
+            lastUpdated: serverTimestamp()
+        }, { merge: true });
+        setUserEmail(trimmedEmail);
+    }, [userId]);
+
     const handleBooking = useCallback(async () => {
         const hasPlayer = selectedEquipment.some(eq => eq.category === 'player');
         const hasMixer = selectedEquipment.some(eq => eq.category === 'mixer');
@@ -546,6 +600,11 @@ setProfileError(`Failed to load profile: ${error.message}`);
 
         if (!selectedDate || !selectedTime || !userId || !auth.currentUser) {
             setError('Please select date, time and be logged in to book.');
+            return;
+        }
+        if (!userEmail) {
+            // Guest accounts without an email cannot make bookings
+            setShowMissingInfoModal(true);
             return;
         }
         setIsLoadingBookings(true);
@@ -579,11 +638,15 @@ setProfileError(`Failed to load profile: ${error.message}`);
             setCdjCount(2);
             setNotes('');
         } catch (bookingError) {
+            // If the backend rejected the booking because of missing information, show the helpful modal
+            if (/email|missing|incomplete/i.test(bookingError.message || '')) {
+                setShowMissingInfoModal(true);
+            }
             setError(`Failed to book session: ${bookingError.message}`);
         } finally {
             setIsLoadingBookings(false);
         }
-    }, [selectedDate, selectedTime, duration, selectedEquipment, calculateTotal, userId, userName, editingBookingId, selectedPaymentMethod]);
+    }, [selectedDate, selectedTime, duration, selectedEquipment, calculateTotal, userId, userName, userEmail, editingBookingId, selectedPaymentMethod]);
 
     const handleEditBooking = useCallback((booking) => {
         setEditingBookingId(booking.id);
@@ -880,7 +943,8 @@ setProfileError(`Failed to load profile: ${error.message}`);
                     authError={authError} 
                     isLoading={isAuthLoading} 
                 />
-                <ProfileModal show={showProfileModal} onClose={() => setShowProfileModal(false)} newDisplayName={newDisplayName} setNewDisplayName={setNewDisplayName} handleUpdateProfile={handleUpdateProfile} handleUpdatePassword={handleUpdatePassword} profileLoading={profileLoading} profileError={profileError} userCredits={userCredits} />
+                <ProfileModal show={showProfileModal} onClose={() => setShowProfileModal(false)} newDisplayName={newDisplayName} setNewDisplayName={setNewDisplayName} handleUpdateProfile={handleUpdateProfile} handleUpdatePassword={handleUpdatePassword} handleUpdateEmail={handleUpdateEmail} profileLoading={profileLoading} profileError={profileError} userCredits={userCredits} userEmail={userEmail} />
+                <MissingInfoModal show={showMissingInfoModal} onClose={() => setShowMissingInfoModal(false)} missingItems={missingProfileInfo} onCompleteProfile={() => { setShowMissingInfoModal(false); setShowProfileModal(true); }} />
                 <ConfirmationModal show={showConfirmation} onClose={() => setShowConfirmation(false)} booking={currentBooking} isUpdate={!!editingBookingId} />
                 <DeleteConfirmationModal show={showDeleteConfirmation} onClose={() => setShowDeleteConfirmation(false)} booking={bookingToDelete} onConfirm={confirmDeleteBooking} isLoading={isLoadingBookings} />
             </div>
