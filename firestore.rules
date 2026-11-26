@@ -31,6 +31,12 @@ service cloud.firestore {
       }
     }
 
+    // Public booking slots for client-side availability checks (no PII).
+    match /artifacts/{appId}/publicBookingSlots/{bookingId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
     // This rule is necessary for the admin page to fetch all bookings.
     match /{path=**}/bookings/{bookingId} {
       allow read: if isAdmin();

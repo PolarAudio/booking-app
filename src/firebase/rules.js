@@ -48,6 +48,13 @@ service cloud.firestore {
         allow read, update, delete: if isAdmin(); // <--- This now uses the corrected isAdmin()
       }
 
+      // Public booking slots for client-side availability checks (no PII).
+      // Written only by trusted backend/Admin SDK.
+      match /publicBookingSlots/{bookingId} {
+        allow read: if isAuthenticated();
+        allow write: if false;
+      }
+
       // Collection Group rule for 'bookings' subcollections.
       // This rule is crucial for the AdminPage's `collectionGroup(db, 'bookings')` query,
       // allowing it to fetch all booking documents across all users.

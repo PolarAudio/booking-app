@@ -30,6 +30,7 @@ import {
 import { 
     collection, 
     query, 
+    where,
     addDoc, 
     onSnapshot, 
     serverTimestamp, 
@@ -101,6 +102,7 @@ function BookingApp() {
     const [conflictError, setConflictError] = useState(null);
     const [conflictingSlots, setConflictingSlots] = useState([]);
     const [bookedSlotsForDate, setBookedSlotsForDate] = useState([]);
+    const [scheduleError, setScheduleError] = useState(null);
 
     // Firebase state
     const [userEmail, setUserEmail] = useState(null);
@@ -269,34 +271,32 @@ setProfileError(`Failed to load profile: ${error.message}`);
         return () => unsubscribe();
     }, [userId, isLoadingAuth]);
 
-    // --- EFFECT 4: Fetch Booked Slots ---
+    // --- EFFECT 4: Fetch Booked Slots (direct Firestore, no backend cold start) ---
     useEffect(() => {
-        const fetchBookedSlots = async () => {
-            if (!selectedDate || isLoadingAuth || !auth.currentUser) {
-                setBookedSlotsForDate([]);
-                return;
-            }
+        if (!selectedDate || isLoadingAuth || !auth.currentUser) {
+            setBookedSlotsForDate([]);
+            setScheduleError(null);
+            return;
+        }
 
-            try {
-                const idToken = await auth.currentUser.getIdToken();
-                const response = await fetch(`${BACKEND_API_BASE_URL}/api/check-booked-slots?date=${selectedDate}`, {
-                    headers: { 'Authorization': `Bearer ${idToken}` }
-                });
+        setScheduleError(null);
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to fetch booked slots.');
-                }
+        const publicSlotsRef = collection(db, `artifacts/${APP_ID_FOR_FIRESTORE_PATH}/publicBookingSlots`);
+        const slotsQuery = query(publicSlotsRef, where('date', '==', selectedDate));
+        const unsubscribe = onSnapshot(slotsQuery, (snapshot) => {
+            const slots = snapshot.docs
+                .map(docSnap => ({ id: docSnap.id, ...docSnap.data() }))
+                .filter(slot => ['waiting for confirmation', 'booking confirmed'].includes(slot.status));
+            setBookedSlotsForDate(slots);
+            setScheduleError(null);
+        }, (firestoreError) => {
+            console.error("Error fetching booked slots from Firestore:", firestoreError);
+            setBookedSlotsForDate([]);
+            setScheduleError('Could not load the schedule for this day. Booking is temporarily unavailable for this date. Please try again later.');
+        });
 
-                const data = await response.json();
-                setBookedSlotsForDate(data.bookedSlots);
-            } catch (fetchError) {
-                console.error("Error fetching booked slots:", fetchError);
-                setError('Could not load the schedule for this day. Please try again later.');
-            }
-        };
-        fetchBookedSlots();
-    }, [selectedDate, isLoadingAuth, duration]);
+        return () => unsubscribe();
+    }, [selectedDate, isLoadingAuth]);
 
     // --- EFFECT 5: Handle Payment Confirmation Link ---
     useEffect(() => {
@@ -352,7 +352,10 @@ setProfileError(`Failed to load profile: ${error.message}`);
             let isDisabled = false;
             let disabledReason = '';
 
-            if (isSunday) {
+            if (scheduleError) {
+                isDisabled = true;
+                disabledReason = 'Schedule unavailable';
+            } else if (isSunday) {
                 isDisabled = true;
                 disabledReason = 'Closed on Sunday';
             } else if (proposedEndMoment.isAfter(closingTime)) {
@@ -375,7 +378,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
             }
             return { ...slot, label: slot.label + (isDisabled ? ` (${disabledReason})` : ''), disabled: isDisabled };
         });
-    }, [selectedDate, bookedSlotsForDate, timeSlots, duration, editingBookingId, today]);
+    }, [selectedDate, bookedSlotsForDate, timeSlots, duration, editingBookingId, today, scheduleError]);
 
     const calculateTotal = useCallback(() => {
         const basePrice = ROOM_RATE_PER_HOUR * duration;
@@ -391,6 +394,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
     const handleDateChange = useCallback((e) => {
         setSelectedDate(e.target.value);
         setSelectedTime('');
+        setScheduleError(null);
     }, []);
 
     const toggleEquipment = useCallback((equipment) => {
@@ -598,6 +602,10 @@ setProfileError(`Failed to load profile: ${error.message}`);
             return;
         }
 
+        if (scheduleError) {
+            setError(scheduleError);
+            return;
+        }
         if (!selectedDate || !selectedTime || !userId || !auth.currentUser) {
             setError('Please select date, time and be logged in to book.');
             return;
@@ -625,7 +633,11 @@ setProfileError(`Failed to load profile: ${error.message}`);
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
                 body: JSON.stringify({ bookingData: bookingDataToSend, userName, editingBookingId })
             });
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
+            if (response.status === 409) {
+                setSelectedTime('');
+                throw new Error(data.error || 'This time slot is no longer available. Please choose another slot.');
+            }
             if (!response.ok) throw new Error(data.error || 'Failed to confirm your booking.');
 
             setCurrentBooking({ ...bookingDataToSend, id: data.bookingId, userName: userName, timestamp: new Date(), paymentStatus: 'pending' });
@@ -756,7 +768,7 @@ setProfileError(`Failed to load profile: ${error.message}`);
                 {(error || profileError || paymentConfirmMessage) && (
                     <div className={`px-4 py-3 rounded-xl relative mb-4 ${paymentConfirmMessage ? (paymentConfirmMessage.includes('Error') ? 'bg-red-800' : 'bg-green-800') : 'bg-red-800'} text-white`} role="alert">
                         <strong className="font-bold">{paymentConfirmMessage ? 'Status:' : 'Error!'}</strong>
-                        <span className="block sm:inline"> {error || profileError || paymentConfirmMessage}</span>
+                        <span className="block sm:inline"> {error || profileError || scheduleError || paymentConfirmMessage}</span>
                     </div>
                 )}
 
